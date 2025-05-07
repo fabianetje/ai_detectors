@@ -2,83 +2,87 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Kat Detector</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css"/>
   <style>
-    video, canvas {
-      width: 90vw;
-      height: auto;
-      border-radius: 10px;
+    #cam, #canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 0;
     }
-    #status {
-      margin-top: 20px;
-      font-size: 1.5em;
-      padding: 10px;
-      border-radius: 8px;
-      width: fit-content;
-      margin-left: auto;
-      margin-right: auto;
+    .label-box {
+      position: absolute;
+      background: rgba(0, 128, 0, 0.7);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 14px;
+      pointer-events: none;
+      z-index: 2;
     }
-    .yes { background-color: #2ecc71; color: black; }
-    .no { background-color: #e74c3c; }
   </style>
 </head>
 <body>
-  <h1>🐈 Kat Detector</h1>
   <video id="cam" autoplay muted playsinline></video>
   <canvas id="canvas"></canvas>
-  <div id="status" class="no">Kat in beeld: ✖</div>
-  <div id="error"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.9.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2"></script>
   <script>
     const video = document.getElementById('cam');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const statusDiv = document.getElementById('status');
-    const errorDiv = document.getElementById('error');
 
     async function setupCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: "environment" } }
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
           video.onloadedmetadata = () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             resolve();
           };
         });
-      } catch (e) {
-        errorDiv.textContent = "❌ Kan de camera niet openen: " + e.message;
-        throw e;
+      } catch (err) {
+        alert("Camera fout: " + err.message);
       }
     }
 
-    async function detectCats() {
-      const model = await cocoSsd.load();
-      setInterval(async () => {
-        const predictions = await model.detect(video);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        let found = false;
-        predictions.forEach(p => {
-          if (p.class === "cat") {
-            found = true;
-            ctx.strokeStyle = "lime";
-            ctx.lineWidth = 4;
-            ctx.strokeRect(...p.bbox);
-          }
-        });
-        statusDiv.textContent = found ? "Kat in beeld: ✔" : "Kat in beeld: ✖";
-        statusDiv.className = found ? "yes" : "no";
-      }, 500);
+    function drawBox(x, y, w, h, label) {
+      ctx.strokeStyle = "lime";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, w, h);
+
+      const box = document.createElement('div');
+      box.className = 'label-box';
+      box.style.left = `${x}px`;
+      box.style.top = `${Math.max(y - 20, 0)}px`;
+      box.textContent = label === "cat" ? "✔ Kat" : "✖ Geen kat";
+      document.body.appendChild(box);
+
+      setTimeout(() => box.remove(), 1000);
     }
 
-    setupCamera().then(detectCats);
+    async function runDetection() {
+      const model = await cocoSsd.load();
+      setInterval(async () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const predictions = await model.detect(video);
+        predictions.forEach(pred => {
+          if (pred.class === "cat") {
+            const [x, y, w, h] = pred.bbox;
+            drawBox(x, y, w, h, "cat");
+          }
+        });
+      }, 1000);
+    }
+
+    setupCamera().then(runDetection);
   </script>
 </body>
 </html>
