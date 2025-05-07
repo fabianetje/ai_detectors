@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Persoon Detector</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>👤 Persoon Detector</h1>
+  <video id="cam" autoplay muted playsinline></video>
+  <canvas id="canvas"></canvas>
+  <div id="status" class="no">Persoon in beeld: ✖</div>
+  <div id="error"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <script>
+    const video = document.getElementById('cam');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const statusDiv = document.getElementById('status');
+    const errorDiv = document.getElementById('error');
+
+    async function setupCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        return new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            resolve();
+          };
+        });
+      } catch (e) {
+        errorDiv.textContent = "❌ Kan de camera niet openen: " + e.message;
+        throw e;
+      }
+    }
+
+    async function detectPeople() {
+      const model = await cocoSsd.load();
+      setInterval(async () => {
+        const predictions = await model.detect(video);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let found = false;
+        predictions.forEach(p => {
+          if (p.class === "person") {
+            found = true;
+            ctx.strokeStyle = "cyan";
+            ctx.lineWidth = 4;
+            ctx.strokeRect(...p.bbox);
+          }
+        });
+        statusDiv.textContent = found ? "Persoon in beeld: ✔" : "Persoon in beeld: ✖";
+        statusDiv.className = found ? "yes" : "no";
+      }, 500);
+    }
+
+    setupCamera().then(detectPeople);
+  </script>
+</body>
+</html>
